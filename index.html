@@ -6,8 +6,14 @@
     <title>PT. Putra Wahyu Cabe - Sistem Nota</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 20px; color: #333; }
-        .card { background: white; padding: 25px; border-radius: 8px; max-width: 900px; margin: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card { background: white; padding: 25px; border-radius: 8px; max-width: 950px; margin: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h2 { border-bottom: 2px solid #222; padding-bottom: 10px; margin-top: 0; }
+        
+        /* Tab Navigation */
+        .tab-menu { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+        .tab-btn { padding: 10px 20px; border: none; background: #e9ecef; cursor: pointer; font-weight: bold; border-radius: 5px 5px 0 0; }
+        .tab-btn.active { background: #007bff; color: white; }
+
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
         .form-group { flex: 1; }
         label { display: block; font-weight: bold; margin-bottom: 5px; }
@@ -15,14 +21,16 @@
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f8f9fa; }
+        
         .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-add { background: #28a745; color: white; margin-top: 10px; }
         .btn-group { display: flex; gap: 10px; margin-top: 20px; }
         .btn-save { background: #28a745; color: white; flex: 1; font-size: 16px; padding: 12px; }
         .btn-print { background: #007bff; color: white; flex: 1; font-size: 16px; padding: 12px; }
         .btn-danger { background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+        .btn-sm-print { background: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
 
-        /* Format Khusus Saat Dicetak */
+        /* Print Style */
         @media print {
             .no-print { display: none !important; }
             body { background: white; margin: 0; padding: 0; }
@@ -35,79 +43,105 @@
 <body>
 
 <div class="card no-print">
-    <h2>📝 Form Nota Pembelian Cabai</h2>
-    <form id="notaForm">
-        <div class="form-row">
-            <div class="form-group">
-                <label>Tanggal Transaksi</label>
-                <input type="date" id="tanggal" required>
-            </div>
-            <div class="form-group">
-                <label>Nama Supplier</label>
-                <input type="text" id="nama_supplier" placeholder="Contoh: Bp. Nur Us" required>
-            </div>
-        </div>
+    <!-- Menu Tab Navigation -->
+    <div class="tab-menu">
+        <button class="tab-btn active" onclick="bukaTab('tabInput', this)">📝 Input Nota Baru</button>
+        <button class="tab-btn" onclick="bukaTab('tabDaftar', this); muatDaftarNota();">📋 Daftar Nota Tersimpan</button>
+    </div>
 
-        <h3>Rincian Barang / Cabai</h3>
+    <!-- TAB 1: FORM INPUT NOTA -->
+    <div id="tabInput" class="tab-content">
+        <h2>Form Nota Pembelian Cabai</h2>
+        <form id="notaForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tanggal Transaksi</label>
+                    <input type="date" id="tanggal" required>
+                </div>
+                <div class="form-group">
+                    <label>Nama Supplier</label>
+                    <input type="text" id="nama_supplier" placeholder="Contoh: Bp. Nur Us" required>
+                </div>
+            </div>
+
+            <h3>Rincian Barang / Cabai</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nama Barang</th>
+                        <th>Wadah</th>
+                        <th>Timbang (Kg)</th>
+                        <th>Bersih (Kg)</th>
+                        <th>Harga / Kg</th>
+                        <th>Nilai (Rp)</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="itemRows"></tbody>
+            </table>
+            <button type="button" class="btn btn-add" onclick="tambahBarisBarang()">+ Tambah Barang</button>
+
+            <hr style="margin-top: 20px;">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Total Hari Ini (Rp)</label>
+                    <input type="text" id="total_hari_ini" readonly style="background:#eee; font-weight:bold;">
+                </div>
+                <div class="form-group">
+                    <label>Kurangan Lalu (Rp)</label>
+                    <input type="number" id="kurangan_lalu" value="0" oninput="hitungKalkulasiAkhir()">
+                </div>
+                <div class="form-group">
+                    <label>Transfer / Bayar (Rp)</label>
+                    <input type="number" id="jumlah_transfer" value="0" oninput="hitungKalkulasiAkhir()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Sisa Kurangan Akhir (Rp)</label>
+                <input type="text" id="sisa_kurangan_tampil" readonly style="background:#d4edda; font-weight:bold; font-size:18px; color:#155724;">
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn btn-save" onclick="simpanNotaOnly()">💾 Simpan Ke Database</button>
+                <button type="button" class="btn btn-print" onclick="cetakNotaOnly()">🖨️ Cetak Nota</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- TAB 2: DAFTAR NOTA TERSIMPAN -->
+    <div id="tabDaftar" class="tab-content" style="display:none;">
+        <h2>Daftar Nota Pembelian</h2>
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="carisupplier" placeholder="🔍 Cari Nama Supplier..." onkeyup="filterTabelSupplier()">
+        </div>
         <table>
             <thead>
                 <tr>
-                    <th>Nama Barang</th>
-                    <th>Wadah</th>
-                    <th>Timbang (Kg)</th>
-                    <th>Bersih (Kg)</th>
-                    <th>Harga / Kg</th>
-                    <th>Nilai (Rp)</th>
+                    <th>Tanggal</th>
+                    <th>Nama Supplier</th>
+                    <th>Total Belanja</th>
+                    <th>Sisa Kurangan</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
-            <tbody id="itemRows">
-                <!-- Baris tabel diisi via JS -->
+            <tbody id="tabelDaftarNota">
+                <tr><td colspan="5" style="text-align:center;">Memuat data...</td></tr>
             </tbody>
         </table>
-        <button type="button" class="btn btn-add" onclick="tambahBarisBarang()">+ Tambah Barang</button>
-
-        <hr style="margin-top: 20px;">
-
-        <div class="form-row">
-            <div class="form-group">
-                <label>Total Hari Ini (Rp)</label>
-                <input type="text" id="total_hari_ini" readonly style="background:#eee; font-weight:bold;">
-            </div>
-            <div class="form-group">
-                <label>Kurangan Lalu (Rp)</label>
-                <input type="number" id="kurangan_lalu" value="0" oninput="hitungKalkulasiAkhir()">
-            </div>
-            <div class="form-group">
-                <label>Transfer / Bayar (Rp)</label>
-                <input type="number" id="jumlah_transfer" value="0" oninput="hitungKalkulasiAkhir()">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label>Sisa Kurangan Akhir (Rp)</label>
-            <input type="text" id="sisa_kurangan_tampil" readonly style="background:#d4edda; font-weight:bold; font-size:18px; color:#155724;">
-        </div>
-
-        <!-- Tombol Dipisah di Sini -->
-        <div class="btn-group">
-            <button type="button" class="btn btn-save" onclick="simpanNotaOnly()">💾 Simpan Ke Database</button>
-            <button type="button" class="btn btn-print" onclick="cetakNotaOnly()">🖨️ Cetak Nota</button>
-        </div>
-    </form>
+    </div>
 </div>
 
-<!-- Tampilan Nota Cetak (Presisi Format Excel PT. Putra Wahyu Cabe) -->
-<div id="areaCetak" class="print-only" style="font-family: 'Courier New', monospace; width: 100%;">
-    <!-- Diisi otomatis oleh JS saat klik Cetak -->
-</div>
+<!-- Area Cetak -->
+<div id="areaCetak" class="print-only" style="font-family: 'Courier New', monospace; width: 100%;"></div>
 
-<!-- SDK Firebase (Modular Script) -->
+<!-- SDK Firebase -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  // TODO: Ganti bagian firebaseConfig ini dengan data dari Console Firebase milikmu
+  // TODO: Ganti firebaseConfig ini dengan punya Anda
   const firebaseConfig = {
     apiKey: "PASTE_API_KEY_KAMU_DI_SINI",
     authDomain: "nota-cabe.firebaseapp.com",
@@ -120,13 +154,21 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // Set Tanggal Hari Ini Otomatis
+  let dataNotaLoaded = []; // Menyimpan temporary data nota dari Firebase
+
   document.getElementById('tanggal').valueAsDate = new Date();
 
-  // Tambahkan baris pertama saat aplikasi dibuka
   window.addEventListener('DOMContentLoaded', () => {
       tambahBarisBarang();
   });
+
+  // Fungsi Swaping Tab
+  window.bukaTab = function(tabName, btnEl) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabName).style.display = 'block';
+      btnEl.classList.add('active');
+  }
 
   window.tambahBarisBarang = function() {
       const tbody = document.getElementById('itemRows');
@@ -163,7 +205,7 @@
 
       let potongan = 0;
       if (wadah === 'Koli/Bagor') {
-          potongan = Math.floor(timbang / 50); // Potong 1kg per kelipatan 50kg
+          potongan = Math.floor(timbang / 50);
       }
 
       const bersih = timbang - potongan;
@@ -194,7 +236,6 @@
       document.getElementById('sisa_kurangan_tampil').setAttribute('data-sisa', sisaAkhir);
   }
 
-  // Fungsi Ambil Data Form
   function kumpulkanDataNota() {
       const items = [];
       document.querySelectorAll('#itemRows tr').forEach(row => {
@@ -224,21 +265,14 @@
       };
   }
 
-  // 1. Fungsi Khusus SIMPAN SAJA
   window.simpanNotaOnly = async function() {
       const form = document.getElementById('notaForm');
-      if (!form.checkValidity()) {
-          form.reportValidity();
-          return;
-      }
+      if (!form.checkValidity()) { form.reportValidity(); return; }
 
       const notaData = kumpulkanDataNota();
-
       try {
           await addDoc(collection(db, "nota_pembelian"), notaData);
-          alert("✅ Nota Berhasil Disimpan ke Cloud Firebase!");
-          
-          // Reset form agar siap input nota baru
+          alert("✅ Nota Berhasil Disimpan ke Firebase!");
           document.getElementById('itemRows').innerHTML = '';
           document.getElementById('nama_supplier').value = '';
           document.getElementById('kurangan_lalu').value = 0;
@@ -246,21 +280,77 @@
           tambahBarisBarang();
           hitungKalkulasiAkhir();
       } catch (error) {
-          alert("Gagal menyimpan ke Cloud: " + error.message);
+          alert("Gagal menyimpan: " + error.message);
       }
   }
 
-  // 2. Fungsi Khusus CETAK SAJA
   window.cetakNotaOnly = function() {
       const form = document.getElementById('notaForm');
-      if (!form.checkValidity()) {
-          form.reportValidity();
-          return;
-      }
+      if (!form.checkValidity()) { form.reportValidity(); return; }
 
       const notaData = kumpulkanDataNota();
       buatNotaCetak(notaData);
       window.print();
+  }
+
+  // --- MENGAMBIL DAFTAR NOTA DARI FIREBASE ---
+  window.muatDaftarNota = async function() {
+      const tbody = document.getElementById('tabelDaftarNota');
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Mengambil data dari cloud...</td></tr>';
+
+      try {
+          const q = query(collection(db, "nota_pembelian"), orderBy("created_at", "desc"));
+          const querySnapshot = await getDocs(q);
+          
+          dataNotaLoaded = [];
+          tbody.innerHTML = '';
+
+          if (querySnapshot.empty) {
+              tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Belum ada nota tersimpan.</td></tr>';
+              return;
+          }
+
+          let index = 0;
+          querySnapshot.forEach((doc) => {
+              const data = doc.data();
+              dataNotaLoaded.push(data);
+
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                  <td>${data.tanggal}</td>
+                  <td><b>${data.nama_supplier}</b></td>
+                  <td>Rp ${data.total_hari_ini.toLocaleString('id-ID')}</td>
+                  <td style="color:${data.sisa_kurangan > 0 ? '#dc3545' : '#28a745'}; font-weight:bold;">
+                      Rp ${data.sisa_kurangan.toLocaleString('id-ID')}
+                  </td>
+                  <td>
+                      <button class="btn-sm-print" onclick="cetakUlangNota(${index})">🖨️ Cetak</button>
+                  </td>
+              `;
+              tbody.appendChild(tr);
+              index++;
+          });
+      } catch (error) {
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Gagal memuat: ${error.message}</td></tr>`;
+      }
+  }
+
+  window.cetakUlangNota = function(index) {
+      const data = dataNotaLoaded[index];
+      buatNotaCetak(data);
+      window.print();
+  }
+
+  window.filterTabelSupplier = function() {
+      const input = document.getElementById('carisupplier').value.toLowerCase();
+      const rows = document.querySelectorAll('#tabelDaftarNota tr');
+      rows.forEach(row => {
+          const supplierCell = row.getElementsByTagName('td')[1];
+          if (supplierCell) {
+              const text = supplierCell.textContent || supplierCell.innerText;
+              row.style.display = text.toLowerCase().indexOf(input) > -1 ? '' : 'none';
+          }
+      });
   }
 
   function buatNotaCetak(data) {
