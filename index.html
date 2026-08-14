@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PT. Putra Wahyu Cabe - Sistem Nota</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 20px; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 8px; max-width: 900px; margin: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #222; padding-bottom: 10px; margin-top: 0; }
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .form-group { flex: 1; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f8f9fa; }
+        .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-add { background: #28a745; color: white; margin-top: 10px; }
+        .btn-submit { background: #007bff; color: white; width: 100%; margin-top: 20px; font-size: 16px; }
+        .btn-danger { background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+
+        /* Format Khusus Saat Dicetak */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; margin: 0; padding: 0; }
+            .card { box-shadow: none; max-width: 100%; padding: 0; }
+            .print-only { display: block !important; }
+        }
+        .print-only { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card no-print">
+    <h2>📝 Form Nota Pembelian Cabai</h2>
+    <form id="notaForm">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Tanggal Transaksi</label>
+                <input type="date" id="tanggal" required>
+            </div>
+            <div class="form-group">
+                <label>Nama Supplier</label>
+                <input type="text" id="nama_supplier" placeholder="Contoh: Bp. Nur Us" required>
+            </div>
+        </div>
+
+        <h3>Rincian Barang / Cabai</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nama Barang</th>
+                    <th>Wadah</th>
+                    <th>Timbang (Kg)</th>
+                    <th>Bersih (Kg)</th>
+                    <th>Harga / Kg</th>
+                    <th>Nilai (Rp)</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="itemRows">
+                <!-- Baris tabel diisi via JS -->
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-add" onclick="tambahBarisBarang()">+ Tambah Barang</button>
+
+        <hr style="margin-top: 20px;">
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Total Hari Ini (Rp)</label>
+                <input type="text" id="total_hari_ini" readonly style="background:#eee; font-weight:bold;">
+            </div>
+            <div class="form-group">
+                <label>Kurangan Lalu (Rp)</label>
+                <input type="number" id="kurangan_lalu" value="0" oninput="hitungKalkulasiAkhir()">
+            </div>
+            <div class="form-group">
+                <label>Transfer / Bayar (Rp)</label>
+                <input type="number" id="jumlah_transfer" value="0" oninput="hitungKalkulasiAkhir()">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Sisa Kurangan Akhir (Rp)</label>
+            <input type="text" id="sisa_kurangan_tampil" readonly style="background:#d4edda; font-weight:bold; font-size:18px; color:#155724;">
+        </div>
+
+        <button type="submit" class="btn btn-submit">💾 Simpan ke Firebase & Cetak Nota</button>
+    </form>
+</div>
+
+<!-- Tampilan Nota Cetak (Presisi Format Excel PT. Putra Wahyu Cabe) -->
+<div id="areaCetak" class="print-only" style="font-family: 'Courier New', monospace; width: 100%;">
+    <!-- Diisi otomatis oleh JS saat klik simpan -->
+</div>
+
+<!-- SDK Firebase (Modular Script) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  // TODO: Ganti bagian firebaseConfig ini dengan data dari Console Firebase milikmu
+  const firebaseConfig = {
+  	apiKey: "AIzaSyClzftviP1LZAvMce5rWye5I_qP03PCZ3s",
+ 	authDomain: "nota-cabe-app.firebaseapp.com",
+  	projectId: "nota-cabe-app",
+  	storageBucket: "nota-cabe-app.firebasestorage.app",
+  	messagingSenderId: "921112727886",
+  	appId: "1:921112727886:web:33c89903f55a496bd34e1f",
+  	measurementId: "G-MVHS4HZK1V"
+
+};
+
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Set Tanggal Hari Ini Otomatis
+  document.getElementById('tanggal').valueAsDate = new Date();
+
+  // Tambahkan baris pertama saat aplikasi dibuka
+  window.addEventListener('DOMContentLoaded', () => {
+      tambahBarisBarang();
+  });
+
+  window.tambahBarisBarang = function() {
+      const tbody = document.getElementById('itemRows');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+          <td><input type="text" class="nama_barang" placeholder="Tavi / RM" required></td>
+          <td>
+              <select class="wadah" onchange="hitungRow(this)">
+                  <option value="Koli/Bagor">Koli / Bagor (-1kg/50kg)</option>
+                  <option value="Dus/Plastik">Dus / Plastik (Tanpa Potong)</option>
+              </select>
+          </td>
+          <td><input type="number" step="0.1" class="timbang" oninput="hitungRow(this)" placeholder="0" required></td>
+          <td><input type="text" class="bersih" readonly style="background:#eee;"></td>
+          <td><input type="number" class="harga" oninput="hitungRow(this)" placeholder="0" required></td>
+          <td><input type="text" class="nilai" readonly style="background:#eee; font-weight:bold;"></td>
+          <td><button type="button" class="btn-danger" onclick="hapusBaris(this)">X</button></td>
+      `;
+      tbody.appendChild(tr);
+  }
+
+  window.hapusBaris = function(btn) {
+      if(document.querySelectorAll('#itemRows tr').length > 1) {
+          btn.closest('tr').remove();
+          hitungKalkulasiAkhir();
+      }
+  }
+
+  window.hitungRow = function(el) {
+      const row = el.closest('tr');
+      const wadah = row.querySelector('.wadah').value;
+      const timbang = parseFloat(row.querySelector('.timbang').value) || 0;
+      const harga = parseFloat(row.querySelector('.harga').value) || 0;
+
+      let potongan = 0;
+      if (wadah === 'Koli/Bagor') {
+          potongan = Math.floor(timbang / 50); // Potong 1kg per kelipatan 50kg
+      }
+
+      const bersih = timbang - potongan;
+      const nilai = bersih * harga;
+
+      row.querySelector('.bersih').value = `${bersih} kg${potongan > 0 ? ' (-' + potongan + ')' : ''}`;
+      row.querySelector('.bersih').setAttribute('data-bersih', bersih);
+      row.querySelector('.bersih').setAttribute('data-potongan', potongan);
+      row.querySelector('.nilai').value = 'Rp ' + nilai.toLocaleString('id-ID');
+      row.querySelector('.nilai').setAttribute('data-nilai', nilai);
+
+      hitungKalkulasiAkhir();
+  }
+
+  window.hitungKalkulasiAkhir = function() {
+      let totalHariIni = 0;
+      document.querySelectorAll('.nilai').forEach(el => {
+          totalHariIni += parseFloat(el.getAttribute('data-nilai')) || 0;
+      });
+
+      const kuranganLalu = parseFloat(document.getElementById('kurangan_lalu').value) || 0;
+      const transfer = parseFloat(document.getElementById('jumlah_transfer').value) || 0;
+      const sisaAkhir = (totalHariIni + kuranganLalu) - transfer;
+
+      document.getElementById('total_hari_ini').value = 'Rp ' + totalHariIni.toLocaleString('id-ID');
+      document.getElementById('total_hari_ini').setAttribute('data-total', totalHariIni);
+      document.getElementById('sisa_kurangan_tampil').value = 'Rp ' + sisaAkhir.toLocaleString('id-ID');
+      document.getElementById('sisa_kurangan_tampil').setAttribute('data-sisa', sisaAkhir);
+  }
+
+  // Simpan ke Cloud Firebase & Buka Cetak Nota
+  document.getElementById('notaForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const items = [];
+      document.querySelectorAll('#itemRows tr').forEach(row => {
+          items.push({
+              nama_barang: row.querySelector('.nama_barang').value,
+              wadah: row.querySelector('.wadah').value,
+              berat_timbang: parseFloat(row.querySelector('.timbang').value) || 0,
+              potongan: parseFloat(row.querySelector('.bersih').getAttribute('data-potongan')) || 0,
+              berat_bersih: parseFloat(row.querySelector('.bersih').getAttribute('data-bersih')) || 0,
+              harga: parseFloat(row.querySelector('.harga').value) || 0,
+              nilai: parseFloat(row.querySelector('.nilai').getAttribute('data-nilai')) || 0
+          });
+      });
+
+      const notaData = {
+          tanggal: document.getElementById('tanggal').value,
+          nama_supplier: document.getElementById('nama_supplier').value,
+          items: items,
+          total_hari_ini: parseFloat(document.getElementById('total_hari_ini').getAttribute('data-total')) || 0,
+          kurangan_lalu: parseFloat(document.getElementById('kurangan_lalu').value) || 0,
+          jumlah_transfer: parseFloat(document.getElementById('jumlah_transfer').value) || 0,
+          sisa_kurangan: parseFloat(document.getElementById('sisa_kurangan_tampil').getAttribute('data-sisa')) || 0,
+          created_at: new Date()
+      };
+
+      try {
+          // Simpan data ke database cloud Firestore
+          await addDoc(collection(db, "nota_pembelian"), notaData);
+          
+          // Generate Tampilan Cetak
+          buatNotaCetak(notaData);
+
+          // Panggil dialog print browser
+          window.print();
+      } catch (error) {
+          alert("Gagal menyimpan ke Cloud: " + error.message);
+      }
+  });
+
+  function buatNotaCetak(data) {
+      const area = document.getElementById('areaCetak');
+      let rowsHtml = '';
+      
+      data.items.forEach(item => {
+          let desc = `${item.nama_barang} = ${item.berat_timbang} kg`;
+          if(item.potongan > 0) {
+              desc = `${item.nama_barang} = ${item.berat_timbang} kg / ${item.berat_bersih} kg`;
+          }
+          
+          rowsHtml += `
+              <tr>
+                  <td style="text-align:left; border:1px solid #000; padding:5px;">${desc}</td>
+                  <td style="text-align:right; border:1px solid #000; padding:5px;">${item.berat_bersih.toLocaleString('id-ID')}</td>
+                  <td style="text-align:right; border:1px solid #000; padding:5px;">${item.harga.toLocaleString('id-ID')}</td>
+                  <td style="text-align:right; border:1px solid #000; padding:5px;">${item.nilai.toLocaleString('id-ID')}</td>
+              </tr>
+          `;
+      });
+
+      area.innerHTML = `
+          <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+              <div>
+                  <h2 style="margin:0; border:none; font-family:Arial;">PT. PUTRA WAHYU CABE</h2>
+                  <small style="font-family:Arial;">Jl. Mayjend Pandjaitan No. 11 Mungseng<br>Kec. Temanggung, Kab. Temanggung Jawa Tengah</small>
+              </div>
+              <div style="text-align:right;">
+                  <h3 style="margin:0; text-decoration:underline;">NOTA PEMBELIAN</h3>
+                  <strong>Bp. ${data.nama_supplier}</strong>
+              </div>
+          </div>
+          <div style="margin-bottom:10px; font-weight:bold;">${data.tanggal}</div>
+          <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
+              <thead>
+                  <tr>
+                      <th style="border:1px solid #000; padding:5px;">NAMA BARANG / DESKRIPSI</th>
+                      <th style="border:1px solid #000; padding:5px;">BERAT (kg)</th>
+                      <th style="border:1px solid #000; padding:5px;">HARGA (Rp)</th>
+                      <th style="border:1px solid #000; padding:5px;">NILAI (Rp)</th>
+                  </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="float:right; width:50%; text-align:right;">
+              <div>TOTAL = ${data.total_hari_ini.toLocaleString('id-ID')}</div>
+              <div style="border-bottom:1px solid #000;">Kurangan = ${data.kurangan_lalu.toLocaleString('id-ID')}</div>
+              <div style="font-weight:bold; margin-top:3px;">${(data.total_hari_ini + data.kurangan_lalu).toLocaleString('id-ID')}</div>
+              ${data.jumlah_transfer > 0 ? `<div style="background:#e0e0e0; font-weight:bold; margin:3px 0;">TF ${data.tanggal} = ${data.jumlah_transfer.toLocaleString('id-ID')}</div>` : ''}
+              <div style="border-top:1px solid #000; font-weight:bold; font-size:16px;">${data.sisa_kurangan.toLocaleString('id-ID')}</div>
+          </div>
+      `;
+  }
+</script>
+
+</body>
+</html>
