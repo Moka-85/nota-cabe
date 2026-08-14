@@ -17,7 +17,9 @@
         th { background: #f8f9fa; }
         .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-add { background: #28a745; color: white; margin-top: 10px; }
-        .btn-submit { background: #007bff; color: white; width: 100%; margin-top: 20px; font-size: 16px; }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-save { background: #28a745; color: white; flex: 1; font-size: 16px; padding: 12px; }
+        .btn-print { background: #007bff; color: white; flex: 1; font-size: 16px; padding: 12px; }
         .btn-danger { background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; }
 
         /* Format Khusus Saat Dicetak */
@@ -87,13 +89,17 @@
             <input type="text" id="sisa_kurangan_tampil" readonly style="background:#d4edda; font-weight:bold; font-size:18px; color:#155724;">
         </div>
 
-        <button type="submit" class="btn btn-submit">💾 Simpan ke Firebase & Cetak Nota</button>
+        <!-- Tombol Dipisah di Sini -->
+        <div class="btn-group">
+            <button type="button" class="btn btn-save" onclick="simpanNotaOnly()">💾 Simpan Ke Database</button>
+            <button type="button" class="btn btn-print" onclick="cetakNotaOnly()">🖨️ Cetak Nota</button>
+        </div>
     </form>
 </div>
 
 <!-- Tampilan Nota Cetak (Presisi Format Excel PT. Putra Wahyu Cabe) -->
 <div id="areaCetak" class="print-only" style="font-family: 'Courier New', monospace; width: 100%;">
-    <!-- Diisi otomatis oleh JS saat klik simpan -->
+    <!-- Diisi otomatis oleh JS saat klik Cetak -->
 </div>
 
 <!-- SDK Firebase (Modular Script) -->
@@ -103,16 +109,13 @@
 
   // TODO: Ganti bagian firebaseConfig ini dengan data dari Console Firebase milikmu
   const firebaseConfig = {
-  	apiKey: "AIzaSyClzftviP1LZAvMce5rWye5I_qP03PCZ3s",
- 	authDomain: "nota-cabe-app.firebaseapp.com",
-  	projectId: "nota-cabe-app",
-  	storageBucket: "nota-cabe-app.firebasestorage.app",
-  	messagingSenderId: "921112727886",
-  	appId: "1:921112727886:web:33c89903f55a496bd34e1f",
-  	measurementId: "G-MVHS4HZK1V"
-
-};
-
+    apiKey: "PASTE_API_KEY_KAMU_DI_SINI",
+    authDomain: "nota-cabe.firebaseapp.com",
+    projectId: "nota-cabe",
+    storageBucket: "nota-cabe.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abcdef"
+  };
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
@@ -191,24 +194,25 @@
       document.getElementById('sisa_kurangan_tampil').setAttribute('data-sisa', sisaAkhir);
   }
 
-  // Simpan ke Cloud Firebase & Buka Cetak Nota
-  document.getElementById('notaForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
+  // Fungsi Ambil Data Form
+  function kumpulkanDataNota() {
       const items = [];
       document.querySelectorAll('#itemRows tr').forEach(row => {
-          items.push({
-              nama_barang: row.querySelector('.nama_barang').value,
-              wadah: row.querySelector('.wadah').value,
-              berat_timbang: parseFloat(row.querySelector('.timbang').value) || 0,
-              potongan: parseFloat(row.querySelector('.bersih').getAttribute('data-potongan')) || 0,
-              berat_bersih: parseFloat(row.querySelector('.bersih').getAttribute('data-bersih')) || 0,
-              harga: parseFloat(row.querySelector('.harga').value) || 0,
-              nilai: parseFloat(row.querySelector('.nilai').getAttribute('data-nilai')) || 0
-          });
+          const nama = row.querySelector('.nama_barang').value;
+          if(nama) {
+              items.push({
+                  nama_barang: nama,
+                  wadah: row.querySelector('.wadah').value,
+                  berat_timbang: parseFloat(row.querySelector('.timbang').value) || 0,
+                  potongan: parseFloat(row.querySelector('.bersih').getAttribute('data-potongan')) || 0,
+                  berat_bersih: parseFloat(row.querySelector('.bersih').getAttribute('data-bersih')) || 0,
+                  harga: parseFloat(row.querySelector('.harga').value) || 0,
+                  nilai: parseFloat(row.querySelector('.nilai').getAttribute('data-nilai')) || 0
+              });
+          }
       });
 
-      const notaData = {
+      return {
           tanggal: document.getElementById('tanggal').value,
           nama_supplier: document.getElementById('nama_supplier').value,
           items: items,
@@ -218,20 +222,46 @@
           sisa_kurangan: parseFloat(document.getElementById('sisa_kurangan_tampil').getAttribute('data-sisa')) || 0,
           created_at: new Date()
       };
+  }
+
+  // 1. Fungsi Khusus SIMPAN SAJA
+  window.simpanNotaOnly = async function() {
+      const form = document.getElementById('notaForm');
+      if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+      }
+
+      const notaData = kumpulkanDataNota();
 
       try {
-          // Simpan data ke database cloud Firestore
           await addDoc(collection(db, "nota_pembelian"), notaData);
+          alert("✅ Nota Berhasil Disimpan ke Cloud Firebase!");
           
-          // Generate Tampilan Cetak
-          buatNotaCetak(notaData);
-
-          // Panggil dialog print browser
-          window.print();
+          // Reset form agar siap input nota baru
+          document.getElementById('itemRows').innerHTML = '';
+          document.getElementById('nama_supplier').value = '';
+          document.getElementById('kurangan_lalu').value = 0;
+          document.getElementById('jumlah_transfer').value = 0;
+          tambahBarisBarang();
+          hitungKalkulasiAkhir();
       } catch (error) {
           alert("Gagal menyimpan ke Cloud: " + error.message);
       }
-  });
+  }
+
+  // 2. Fungsi Khusus CETAK SAJA
+  window.cetakNotaOnly = function() {
+      const form = document.getElementById('notaForm');
+      if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+      }
+
+      const notaData = kumpulkanDataNota();
+      buatNotaCetak(notaData);
+      window.print();
+  }
 
   function buatNotaCetak(data) {
       const area = document.getElementById('areaCetak');
